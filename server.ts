@@ -77,6 +77,31 @@ app.get('/api/channels', async (req, res) => {
     if (!statsRes.ok) throw new Error('Failed to fetch stats');
     const statsData = await statsRes.json();
     
+    // Enrich with exact counts from Mixerno
+    if (statsData.items && statsData.items.length > 0) {
+      try {
+        const enrichPromises = statsData.items.map(async (item: any) => {
+          try {
+            const mRes = await fetch(`https://mixerno.space/api/youtube-channel-counter/user/${item.id}`);
+            if (mRes.ok) {
+              const mData = await mRes.json();
+              const exactCount = mData.counts?.find((c: any) => c.value === 'subscribers')?.count;
+              if (exactCount !== undefined) {
+                // If Mixerno returns a higher exact count, or close exact count, use it.
+                // Note: Mixerno API provides the estimated real total.
+                item.statistics.subscriberCount = exactCount.toString();
+              }
+            }
+          } catch (e) {
+            // Silently ignore mixerno errors for individual channels
+          }
+        });
+        await Promise.all(enrichPromises);
+      } catch (e) {
+        console.error('Mixerno enrichment failed', e);
+      }
+    }
+    
     res.json(statsData);
   } catch (error: any) {
     console.error('Fetch channels error:', error);

@@ -246,7 +246,13 @@ export default function App() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {favorites.map((channelId) => {
+                  {[...favorites]
+                    .sort((a, b) => {
+                      const countA = parseInt(channelStats[a]?.statistics?.subscriberCount || "0", 10);
+                      const countB = parseInt(channelStats[b]?.statistics?.subscriberCount || "0", 10);
+                      return countB - countA;
+                    })
+                    .map((channelId, index) => {
                     const stats = channelStats[channelId];
                     if (!stats) {
                       return (
@@ -256,6 +262,9 @@ export default function App() {
 
                     return (
                       <div key={channelId} className="bg-neutral-900/60 border border-neutral-800/60 rounded-3xl p-6 relative group overflow-hidden">
+                        <div className="absolute top-4 left-4 flex items-center justify-center bg-red-500/10 text-red-500 text-xs font-bold px-3 py-1.5 rounded-full border border-red-500/20 backdrop-blur-md shadow-sm">
+                          #{index + 1} Место
+                        </div>
                         <div className="absolute top-0 right-0 p-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => toggleFavorite(channelId)}
