@@ -3,6 +3,30 @@ import { Search, Star, Trash2, Youtube, Users, Eye, Video, Loader2 } from "lucid
 import { SearchResult, ChannelStat } from "./types";
 import { motion, AnimatePresence } from "motion/react";
 
+function StatDiff({ value, diffKey, className = "" }: { value: number; diffKey: number; className?: string }) {
+  const [show, setShow] = useState(true);
+
+  useEffect(() => {
+    setShow(true);
+    const t = setTimeout(() => setShow(false), 3000);
+    return () => clearTimeout(t);
+  }, [value, diffKey]);
+
+  if (!show || value === 0) return null;
+
+  const isPos = value > 0;
+  return (
+    <motion.span
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className={`absolute ${className} ${isPos ? 'text-green-400' : 'text-red-400'} drop-shadow-md pointer-events-none whitespace-nowrap`}
+    >
+      {isPos ? '+' : ''}{value.toLocaleString("ru-RU")}
+    </motion.span>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<"search" | "favorites">("favorites");
   const [searchQuery, setSearchQuery] = useState("");
@@ -22,6 +46,7 @@ export default function App() {
 
   // Stored detailed stats for channels
   const [channelStats, setChannelStats] = useState<Record<string, ChannelStat>>({});
+  const [channelDiffs, setChannelDiffs] = useState<Record<string, { subs: number; views: number; videos: number; key: number }>>({});
   
   // Save favorites to localStorage whenever they change
   useEffect(() => {
@@ -87,11 +112,38 @@ export default function App() {
         const data = await res.json();
         
         if (data.items) {
-          const newStats: Record<string, ChannelStat> = {};
-          data.items.forEach((item: ChannelStat) => {
-            newStats[item.id] = item;
+          setChannelStats((prevStats) => {
+            const newStats: Record<string, ChannelStat> = { ...prevStats };
+            
+            setChannelDiffs((prevDiffs) => {
+              const newDiffs = { ...prevDiffs };
+              let hasChanges = false;
+              
+              data.items.forEach((item: ChannelStat) => {
+                const prev = prevStats[item.id];
+                if (prev) {
+                  const subsDiff = Number(item.statistics.subscriberCount) - Number(prev.statistics.subscriberCount);
+                  const viewsDiff = Number(item.statistics.viewCount) - Number(prev.statistics.viewCount);
+                  const videosDiff = Number(item.statistics.videoCount) - Number(prev.statistics.videoCount);
+                  
+                  if (subsDiff !== 0 || viewsDiff !== 0 || videosDiff !== 0) {
+                    newDiffs[item.id] = {
+                      subs: subsDiff !== 0 ? subsDiff : 0,
+                      views: viewsDiff !== 0 ? viewsDiff : 0,
+                      videos: videosDiff !== 0 ? videosDiff : 0,
+                      key: Date.now() + Math.random()
+                    };
+                    hasChanges = true;
+                  }
+                }
+                newStats[item.id] = item;
+              });
+              
+              return hasChanges ? newDiffs : prevDiffs;
+            });
+
+            return newStats;
           });
-          setChannelStats((prev) => ({ ...prev, ...newStats }));
         }
       } catch (err) {
         console.error("Failed to fetch stats", err);
@@ -260,18 +312,20 @@ export default function App() {
                       );
                     }
 
+                    const diff = channelDiffs[channelId];
+
                     return (
                       <div key={channelId} className="bg-neutral-900/60 border border-neutral-800/60 rounded-3xl p-6 relative group overflow-hidden">
                         <div className="absolute top-4 left-4 flex items-center justify-center bg-red-500/10 text-red-500 text-xs font-bold px-3 py-1.5 rounded-full border border-red-500/20 backdrop-blur-md shadow-sm">
                           #{index + 1} Место
                         </div>
-                        <div className="absolute top-0 right-0 p-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-0 right-0 p-4 z-10 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => toggleFavorite(channelId)}
-                            className="bg-red-500/10 hover:bg-red-500/20 text-red-500 p-2 rounded-full backdrop-blur-md transition-colors"
+                            className="bg-red-500/10 active:bg-red-500/20 lg:hover:bg-red-500/20 text-red-500 p-2.5 lg:p-2 rounded-full backdrop-blur-md transition-colors"
                             title="Удалить из избранного"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-5 h-5 lg:w-4 lg:h-4" />
                           </button>
                         </div>
                         
@@ -279,7 +333,7 @@ export default function App() {
                           <img 
                             src={stats.snippet.thumbnails?.high?.url || stats.snippet.thumbnails?.medium?.url || 'https://via.placeholder.com/128'} 
                             alt={stats.snippet.title} 
-                            className="w-24 h-24 rounded-full object-cover ring-4 ring-neutral-800 bg-neutral-800"
+                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-neutral-800 bg-neutral-800"
                           />
                           <h2 className="text-lg font-medium text-white mt-4 text-center line-clamp-1" title={stats.snippet.title}>
                             {stats.snippet.title}
@@ -287,18 +341,25 @@ export default function App() {
                           
                           <div className="mt-8 mb-6 text-center">
                             <span className="text-neutral-400 text-sm font-medium uppercase tracking-wider">Подписчики</span>
-                            <div className="text-5xl font-bold tracking-tighter text-white mt-1 tabular-nums">
+                            <div className="relative text-4xl md:text-5xl font-bold tracking-tighter text-white mt-1 tabular-nums inline-block">
                               {Number(stats.statistics.subscriberCount).toLocaleString("ru-RU")}
+                              {diff && <StatDiff value={diff.subs} diffKey={diff.key} className="-top-6 -right-6 text-sm sm:text-lg" />}
                             </div>
                           </div>
 
                           <div className="grid grid-cols-2 w-full gap-2 border-t border-neutral-800/60 pt-4">
-                            <div className="flex items-center gap-2 text-neutral-400">
+                            <div className="relative flex items-center gap-2 text-neutral-400">
                               <Video className="w-4 h-4 shrink-0" />
-                              <span className="text-sm font-medium tabular-nums">{Number(stats.statistics.videoCount).toLocaleString("ru-RU")}</span>
+                              <span className="relative text-sm font-medium tabular-nums">
+                                {Number(stats.statistics.videoCount).toLocaleString("ru-RU")}
+                                {diff && <StatDiff value={diff.videos} diffKey={diff.key} className="-top-5 left-0 text-xs" />}
+                              </span>
                             </div>
-                            <div className="flex items-center gap-2 text-neutral-400 justify-end">
-                              <span className="text-sm font-medium tabular-nums text-right break-all line-clamp-1">{Number(stats.statistics.viewCount).toLocaleString("ru-RU")}</span>
+                            <div className="relative flex items-center gap-2 text-neutral-400 justify-end">
+                              <span className="relative text-sm font-medium tabular-nums text-right break-all line-clamp-1">
+                                {diff && <StatDiff value={diff.views} diffKey={diff.key} className="-top-5 right-0 text-xs" />}
+                                {Number(stats.statistics.viewCount).toLocaleString("ru-RU")}
+                              </span>
                               <Eye className="w-4 h-4 shrink-0" />
                             </div>
                           </div>
