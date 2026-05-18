@@ -27,12 +27,10 @@ app.get('/api/search', async (req, res) => {
       throw new Error('YOUTUBE_API_KEY is not configured in the environment.');
     }
 
-    // Is it a channel ID?
     const isId = /^[A-Za-z0-9_-]{24}$/.test(query);
 
     let searchUrl = '';
     if (isId) {
-      // Return a pseudo-search result if they pasted an ID
       searchUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${query}&key=${apiKey}`;
       const searchRes = await fetch(searchUrl);
       const searchData = await searchRes.json();
@@ -86,14 +84,12 @@ app.get('/api/channels', async (req, res) => {
   }
 });
 
-// Dev & Prod serve logic
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../dist')));
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../dist/index.html'));
   });
 } else {
-  // We dynamically import Vite to keep it out of prod execution
   import('vite').then(async (vite) => {
     const viteServer = await vite.createServer({
       server: { middlewareMode: true },

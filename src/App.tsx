@@ -8,6 +8,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
   
   // Array of favorited channel IDs
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -19,7 +20,7 @@ export default function App() {
     }
   });
 
-  // Stored detailed stats for channels (both searched and favorited)
+  // Stored detailed stats for channels
   const [channelStats, setChannelStats] = useState<Record<string, ChannelStat>>({});
   
   // Save favorites to localStorage whenever they change
@@ -34,16 +35,21 @@ export default function App() {
     if (!searchQuery.trim()) return;
 
     setIsSearching(true);
+    setSearchError("");
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
-      if (data.items) {
+      if (data.error) {
+        setSearchError(data.error);
+        setSearchResults([]);
+      } else if (data.items) {
         setSearchResults(data.items);
       } else {
         setSearchResults([]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Search failed", err);
+      setSearchError("Failed to connect to server");
     } finally {
       setIsSearching(false);
     }
@@ -63,7 +69,6 @@ export default function App() {
     let timeoutId: number;
 
     const fetchStats = async () => {
-      // Gather all IDs we want to fetch: favorites + currently displayed search results
       const idsToFetch = new Set<string>([...favorites]);
       if (activeTab === "search") {
         searchResults.forEach(result => {
@@ -154,7 +159,7 @@ export default function App() {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Поиск по названию канала..."
+                    placeholder="Поиск по названию канала или ID..."
                     className="w-full bg-neutral-900 border border-neutral-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all shadow-sm"
                   />
                   <button 
@@ -165,6 +170,11 @@ export default function App() {
                     {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Найти"}
                   </button>
                 </form>
+                {searchError && (
+                  <div className="mt-4 p-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl">
+                    {searchError}
+                  </div>
+                )}
               </div>
 
               {searchResults.length > 0 && (
@@ -179,7 +189,7 @@ export default function App() {
                     return (
                       <div key={channelId} className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-4 flex gap-4 hover:border-neutral-700 transition-colors">
                         <img 
-                          src={result.snippet.thumbnails.default.url} 
+                          src={result.snippet.thumbnails?.default?.url || 'https://via.placeholder.com/64'} 
                           alt={result.snippet.title} 
                           className="w-16 h-16 rounded-full object-cover bg-neutral-800"
                         />
@@ -258,11 +268,11 @@ export default function App() {
                         
                         <div className="flex flex-col items-center mt-2">
                           <img 
-                            src={stats.snippet.thumbnails.high.url || stats.snippet.thumbnails.medium.url} 
+                            src={stats.snippet.thumbnails?.high?.url || stats.snippet.thumbnails?.medium?.url || 'https://via.placeholder.com/128'} 
                             alt={stats.snippet.title} 
                             className="w-24 h-24 rounded-full object-cover ring-4 ring-neutral-800 bg-neutral-800"
                           />
-                          <h2 className="text-lg font-medium text-white mt-4 text-center line-clamp-1">
+                          <h2 className="text-lg font-medium text-white mt-4 text-center line-clamp-1" title={stats.snippet.title}>
                             {stats.snippet.title}
                           </h2>
                           
