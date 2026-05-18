@@ -1,0 +1,8 @@
+{
+  "name": "Live Sub Counter",
+  "description": "Track live YouTube subscriber counts with real-time updates every 5 seconds. Search for channels and add them to your favorites to monitor them in one place.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
